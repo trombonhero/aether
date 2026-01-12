@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER LINKS - Refined</title>
+    <title>AETHER: Kinetic</title>
     <style>
-        /* --- STILE VISIVO --- */
+        /* --- VISUAL CONFIG --- */
         :root { 
             --bg: #020617; 
             --accent: #22d3ee; 
@@ -39,51 +39,50 @@
         }
 
 
-        /* HEADER & CONTROLS CONTAINER */
+        /* HEADER */
         .top-bar {
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            width: 100%;
-            pointer-events: auto; /* Permette click sui bottoni */
+            display: flex; justify-content: space-between; align-items: flex-start;
+            width: 100%; pointer-events: auto;
         }
 
 
-        .title-group {
-            text-align: left;
-        }
+        .title-group { text-align: left; }
 
 
         h1 { 
-            font-size: 1.5rem; margin: 0; letter-spacing: 0.2em; 
-            color: white; text-shadow: 0 0 15px var(--accent); 
+            font-size: 1.8rem; margin: 0; letter-spacing: 0.3em; 
+            color: white; text-shadow: 0 0 20px var(--accent); 
             font-weight: 300;
         }
+        
+        /* STATUS BAR */
         .subtitle { 
-            font-size: 0.7rem; letter-spacing: 0.1em; margin-top: 4px; 
-            color: var(--accent); opacity: 0.8;
+            font-size: 0.75rem; letter-spacing: 0.1em; margin-top: 6px; 
+            color: var(--accent); opacity: 0.9; font-weight: bold;
+            text-transform: uppercase;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            transition: color 0.3s;
         }
+        .subtitle.err { color: var(--error); }
+        .subtitle.ok { color: var(--accent); }
 
 
-        /* MINI DICE BUTTON (Top Right) */
-        .dice-btn {
+        /* CONTROLS (Top Right) */
+        .actions { display: flex; gap: 1rem; }
+
+
+        .btn-icon {
             background: rgba(30, 41, 59, 0.6);
             border: 1px solid #475569;
-            width: 44px; height: 44px;
+            width: 48px; height: 48px;
             border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
+            cursor: pointer; transition: all 0.2s;
             backdrop-filter: blur(4px);
+            color: #a78bfa;
         }
-        .dice-btn:active { transform: scale(0.9); background: var(--accent); border-color: var(--accent); }
-        .dice-btn:active svg { stroke: #000; }
-        
-        .dice-icon {
-            width: 24px; height: 24px;
-            fill: none; stroke: #a78bfa; stroke-width: 2;
-            transition: stroke 0.2s;
-        }
+        .btn-icon:active { transform: scale(0.9); background: var(--accent); border-color: var(--accent); color: #000; }
+        .btn-icon svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; }
 
 
         /* CANVAS */
@@ -104,10 +103,8 @@
         }
 
 
-        @keyframes shake {
-            0% { transform: rotate(0deg); } 25% { transform: rotate(15deg); }
-            75% { transform: rotate(-15deg); } 100% { transform: rotate(0deg); }
-        }
+        /* ANIMATIONS */
+        @keyframes shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(15deg); } 75% { transform: rotate(-15deg); } 100% { transform: rotate(0deg); } }
         .shaking { animation: shake 0.4s ease-in-out; }
 
 
@@ -120,14 +117,14 @@
         <div class="top-bar">
             <div class="title-group">
                 <h1>AETHER</h1>
-                <div class="subtitle" id="status-text">STABILIZZA</div>
+                <div class="subtitle" id="status-text">STABILIZZA LA RETE</div>
             </div>
 
 
-            <div class="dice-btn" id="btn-dice" title="Scossa">
-                <svg class="dice-icon" viewBox="0 0 24 24" id="dice-svg">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-                </svg>
+            <div class="actions">
+                <div class="btn-icon" id="btn-dice" title="Scossa / Attiva Sensori">
+                    <svg viewBox="0 0 24 24" id="dice-svg"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                </div>
             </div>
         </div>
 
@@ -149,49 +146,56 @@
             active: '#22d3ee', 
             error: '#ef4444',  
             complete: '#0f172a',
-            linkCore: '#fff',
-            linkGlow: 'rgba(34, 211, 238, 0.3)'
+            linkGlow: 'rgba(34, 211, 238, 0.4)'
         };
 
 
         const PHYSICS = {
-            topPadding: 100, // Safe zone per header
-            padding: 40,     // Safe zone bordi
-            repulsion: 350,
-            springLen: 140,
-            friction: 0.94
+            topPadding: 120, // Safe zone header
+            padding: 40,
+            repulsion: 400, 
+            springLen: 160,
+            friction: 0.93,
+            shakeThreshold: 15 // Soglia sensibilità scossa
         };
 
 
-        class Game {
+        class AetherGame {
             constructor() {
                 this.canvas = document.getElementById('canvas');
                 this.ctx = this.canvas.getContext('2d');
-                this.diceBtn = document.getElementById('btn-dice');
-                this.status = document.getElementById('status-text');
+                this.statusEl = document.getElementById('status-text');
                 this.winMsg = document.getElementById('win-msg');
                 
                 this.nodes = [];
                 this.links = []; 
                 
                 this.drag = { active: false, startNode: null, curr: {x:0,y:0} };
-                
+                this.lastShakeTime = 0;
+
+
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
                 
-                // Input
+                // Input Unificato
                 this.canvas.addEventListener('pointerdown', e => this.onDown(e));
                 window.addEventListener('pointermove', e => this.onMove(e));
                 window.addEventListener('pointerup', e => this.onUp(e));
                 
-                // Dice
-                this.diceBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Evita click sul canvas sotto
-                    this.shakeWorld();
+                // Dice & Motion Sensors
+                document.getElementById('btn-dice').addEventListener('click', (e) => { 
+                    e.stopPropagation(); 
+                    this.requestMotionPermission(); // Tenta attivazione iOS
+                    this.shakeWorld(); 
                 });
 
 
-                // Init
+                // Init Motion Listener (funziona diretto su Android/Desktop se supportato)
+                if (window.DeviceMotionEvent) {
+                    window.addEventListener('devicemotion', e => this.handleMotion(e));
+                }
+
+
                 this.generateLevel();
                 this.loop();
             }
@@ -205,26 +209,49 @@
             }
 
 
-            // --- MATH HELPER ---
-            // Distanza punto (p) da segmento (v-w)
-            distToSegment(p, v, w) {
-                const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
-                if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
-                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-                t = Math.max(0, Math.min(1, t));
-                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+            // --- MOTION CONTROL ---
+            requestMotionPermission() {
+                // Necessario per iOS 13+
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') {
+                                window.addEventListener('devicemotion', e => this.handleMotion(e));
+                            }
+                        })
+                        .catch(console.error);
+                }
             }
 
 
-            // --- LOGIC ---
+            handleMotion(e) {
+                const acc = e.accelerationIncludingGravity;
+                if (!acc) return;
+
+
+                // Calcola magnitudine scossa (ignoriamo Z per semplicità)
+                const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y);
+
+
+                if (magnitude > PHYSICS.shakeThreshold) {
+                    const now = Date.now();
+                    // Debounce (evita scosse multiple in millisecondi)
+                    if (now - this.lastShakeTime > 800) {
+                        this.lastShakeTime = now;
+                        this.shakeWorld();
+                    }
+                }
+            }
+
+
+            // --- LEVEL GEN ---
             generateLevel() {
                 this.nodes = [];
                 this.links = [];
                 this.winMsg.classList.remove('visible');
+                this.setStatus("COLLEGA I NODI", "ok");
                 
-                const nodeCount = Math.floor(Math.random() * 3) + 5; 
-                
-                // Spawn safe area
+                const nodeCount = Math.floor(Math.random() * 3) + 6; 
                 const spawnW = this.width - PHYSICS.padding*2;
                 const spawnH = this.height - PHYSICS.topPadding - PHYSICS.padding;
 
@@ -236,40 +263,39 @@
                         y: Math.random() * spawnH + PHYSICS.topPadding,
                         vx: 0, vy: 0,
                         req: 0,
-                        radius: 25
+                        radius: 28 
                     });
                 }
 
 
-                // Genera soluzione valida
+                // Genera Soluzione
                 let connected = [this.nodes[0]];
                 let pool = this.nodes.slice(1);
-                let virtualLinks = [];
+                let solLinks = [];
 
 
                 while(pool.length > 0) {
                     const src = connected[Math.floor(Math.random() * connected.length)];
                     const dst = pool[Math.floor(Math.random() * pool.length)];
                     const count = Math.random() > 0.7 ? 2 : 1;
-                    virtualLinks.push({a: src, b: dst, count});
+                    solLinks.push({p1: src, p2: dst, count});
                     connected.push(dst);
                     pool = pool.filter(n => n !== dst);
                 }
 
 
-                // Cicli extra
                 for(let i=0; i<2; i++) {
                     const a = this.nodes[Math.floor(Math.random()*this.nodes.length)];
                     const b = this.nodes[Math.floor(Math.random()*this.nodes.length)];
-                    if(a !== b && !virtualLinks.some(l => (l.a===a && l.b===b) || (l.a===b && l.b===a))) {
-                        virtualLinks.push({a, b, count: 1});
+                    if(a !== b && !solLinks.some(l => (l.p1===a && l.p2===b) || (l.p1===b && l.p2===a))) {
+                        solLinks.push({p1: a, p2: b, count: 1});
                     }
                 }
 
 
                 this.nodes.forEach(n => {
                     let req = 0;
-                    virtualLinks.forEach(l => { if(l.a===n || l.b===n) req += l.count; });
+                    solLinks.forEach(l => { if(l.p1===n || l.p2===n) req += l.count; });
                     n.req = req;
                 });
 
@@ -281,16 +307,18 @@
             shakeWorld() {
                 document.getElementById('dice-svg').classList.add('shaking');
                 setTimeout(() => document.getElementById('dice-svg').classList.remove('shaking'), 400);
+                this.setStatus("SCOSSA FISICA", "ok");
+                
+                // Applica una forza randomica a tutti i nodi
                 this.nodes.forEach(n => {
-                    n.vx += (Math.random() - 0.5) * 25;
-                    n.vy += (Math.random() - 0.5) * 25;
+                    n.vx += (Math.random() - 0.5) * 35; // Forza intensa
+                    n.vy += (Math.random() - 0.5) * 35;
                 });
             }
 
 
             // --- FISICA ---
             update() {
-                // Repulsione
                 for(let i=0; i<this.nodes.length; i++) {
                     for(let j=i+1; j<this.nodes.length; j++) {
                         const a = this.nodes[i];
@@ -311,13 +339,12 @@
                 }
 
 
-                // Attrazione Link
                 this.links.forEach(l => {
                     const dx = l.b.x - l.a.x;
                     const dy = l.b.y - l.a.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     
-                    const force = (dist - PHYSICS.springLen) * 0.005;
+                    const force = (dist - PHYSICS.springLen) * 0.008; 
                     const fx = (dx/dist) * force;
                     const fy = (dy/dist) * force;
                     
@@ -326,29 +353,23 @@
                 });
 
 
-                // Confini e Movimento
                 this.nodes.forEach(n => {
-                    // Centro di gravità debole verso il centro dell'area giocabile
                     const cx = this.width / 2;
                     const cy = PHYSICS.topPadding + (this.height - PHYSICS.topPadding) / 2;
                     
-                    n.vx += (cx - n.x) * 0.0003;
-                    n.vy += (cy - n.y) * 0.0003;
+                    n.vx += (cx - n.x) * 0.0002; 
+                    n.vy += (cy - n.y) * 0.0002;
                     
-                    n.x += n.vx;
-                    n.y += n.vy;
-                    n.vx *= PHYSICS.friction;
-                    n.vy *= PHYSICS.friction;
+                    n.x += n.vx; n.y += n.vy;
+                    n.vx *= PHYSICS.friction; n.vy *= PHYSICS.friction;
 
 
-                    // Muri Rimbalzanti (Soft Walls)
-                    const pad = PHYSICS.padding;
-                    const topPad = PHYSICS.topPadding;
-                    
-                    if(n.x < pad) { n.x = pad; n.vx *= -0.5; }
-                    if(n.x > this.width - pad) { n.x = this.width - pad; n.vx *= -0.5; }
-                    if(n.y < topPad) { n.y = topPad; n.vy *= -0.5; } // Header Safe Zone
-                    if(n.y > this.height - pad) { n.y = this.height - pad; n.vy *= -0.5; }
+                    const p = PHYSICS.padding;
+                    const tp = PHYSICS.topPadding;
+                    if(n.x < p) { n.x = p; n.vx *= -0.6; }
+                    if(n.x > this.width - p) { n.x = this.width - p; n.vx *= -0.6; }
+                    if(n.y < tp) { n.y = tp; n.vy *= -0.6; }
+                    if(n.y > this.height - p) { n.y = this.height - p; n.vy *= -0.6; }
                 });
             }
 
@@ -357,45 +378,41 @@
                 this.ctx.clearRect(0, 0, this.width, this.height);
 
 
-                // Links
                 this.links.forEach(l => {
                     this.ctx.beginPath();
                     this.ctx.moveTo(l.a.x, l.a.y);
                     this.ctx.lineTo(l.b.x, l.b.y);
                     
                     if(l.count === 2) {
-                        this.ctx.lineWidth = 6;
+                        this.ctx.lineWidth = 7;
                         this.ctx.strokeStyle = COLORS.linkGlow;
                         this.ctx.stroke();
-                        this.ctx.lineWidth = 2;
-                        this.ctx.strokeStyle = COLORS.linkCore;
+                        this.ctx.lineWidth = 2.5;
+                        this.ctx.strokeStyle = '#fff';
                         this.ctx.stroke();
                     } else {
-                        this.ctx.lineWidth = 2;
+                        this.ctx.lineWidth = 2.5;
                         this.ctx.strokeStyle = COLORS.active;
                         this.ctx.stroke();
                     }
                 });
 
 
-                // Drag Line
                 if(this.drag.active) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(this.drag.startNode.x, this.drag.startNode.y);
                     this.ctx.lineTo(this.drag.curr.x, this.drag.curr.y);
-                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                    this.ctx.setLineDash([10, 10]);
-                    this.ctx.lineWidth = 2;
+                    
+                    this.ctx.strokeStyle = '#facc15'; 
+                    this.ctx.lineWidth = 3;
+                    this.ctx.setLineDash([8, 8]);
                     this.ctx.stroke();
                     this.ctx.setLineDash([]);
                 }
 
 
-                // Nodes
                 this.nodes.forEach(n => {
-                    let cur = 0;
-                    this.links.forEach(l => { if(l.a===n || l.b===n) cur += l.count; });
-                    
+                    let cur = this.curCount(n);
                     const isComplete = cur === n.req;
                     const isOver = cur > n.req;
 
@@ -414,13 +431,15 @@
                     this.ctx.fill();
                     
                     this.ctx.lineWidth = isComplete ? 3 : 2;
-                    this.ctx.strokeStyle = isOver ? COLORS.error : (isComplete ? COLORS.active : COLORS.stroke);
+                    let strokeCol = isOver ? COLORS.error : (isComplete ? COLORS.active : COLORS.stroke);
+                    
+                    this.ctx.strokeStyle = strokeCol;
                     this.ctx.stroke();
                     this.ctx.shadowBlur = 0;
 
 
                     this.ctx.fillStyle = isComplete ? '#fff' : COLORS.active;
-                    this.ctx.font = "bold 20px Courier New";
+                    this.ctx.font = "bold 24px Courier New";
                     this.ctx.textAlign = "center";
                     this.ctx.textBaseline = "middle";
                     this.ctx.fillText(n.req, n.x, n.y + 2);
@@ -430,31 +449,36 @@
 
             // --- INPUT ---
             getPos(e) { return { x: e.clientX, y: e.clientY }; }
+            
+            distToSegment(p, v, w) {
+                const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+                if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+            }
 
 
             onDown(e) {
                 const pos = this.getPos(e);
                 
-                // 1. Check Node Drag
-                const target = this.nodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 10);
+                // 1. Drag Node
+                const target = this.nodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 15);
                 if(target) {
                     this.drag.active = true;
                     this.drag.startNode = target;
                     this.drag.curr = pos;
+                    this.setStatus("TRASCINA...", "ok");
                     return;
                 }
 
 
-                // 2. Check Link Click (Cancellation)
+                // 2. Cut Link (Hitbox ampia: 30px)
                 for(let i=0; i<this.links.length; i++) {
                     const l = this.links[i];
-                    // Calcola distanza dal punto di click al segmento del ponte
-                    const dist = this.distToSegment(pos, l.a, l.b);
-                    
-                    if(dist < 20) { // Hitbox di 20px attorno alla linea
-                        // Elimina il link (o riduci se preferisci logica 2->1)
-                        // Richiesta utente: "si elimina"
+                    if(this.distToSegment(pos, l.a, l.b) < 30) {
                         this.links.splice(i, 1);
+                        this.setStatus("TAGLIO NETTO", "err");
                         this.checkWin();
                         return;
                     }
@@ -462,69 +486,70 @@
             }
 
 
-            onMove(e) {
-                if(this.drag.active) this.drag.curr = this.getPos(e);
-            }
+            onMove(e) { if(this.drag.active) this.drag.curr = this.getPos(e); }
 
 
             onUp(e) {
                 if(!this.drag.active) return;
-                
                 const pos = this.getPos(e);
+                
                 const target = this.nodes.find(n => 
                     n !== this.drag.startNode && 
-                    Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 15
+                    Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 20
                 );
 
 
-                if(target) {
-                    this.toggleLink(this.drag.startNode, target);
-                }
-
-
+                if(target) this.toggleLink(this.drag.startNode, target);
+                
                 this.drag.active = false;
-                this.drag.startNode = null;
-            }
-
-
-            toggleLink(a, b) {
-                const existing = this.links.find(l => (l.a===a && l.b===b) || (l.a===b && l.b===a));
-                
-                if(existing) {
-                    if(existing.count === 1) existing.count = 2;
-                    else this.links = this.links.filter(l => l !== existing);
-                } else {
-                    this.links.push({a: a, b: b, count: 1});
-                }
-                
+                this.setStatus("SISTEMA ONLINE", "");
                 this.checkWin();
             }
 
 
-            checkWin() {
-                const allOk = this.nodes.every(n => {
-                    let cur = 0;
-                    this.links.forEach(l => { if(l.a===n || l.b===n) cur += l.count; });
-                    return cur === n.req;
-                });
-
-
-                if(allOk && this.nodes.length > 0) {
-                    this.winMsg.classList.add('visible');
-                    setTimeout(() => this.generateLevel(), 2000);
+            toggleLink(a, b) {
+                const existing = this.getLink(a.id, b.id);
+                if(existing) {
+                    if(existing.count === 1) existing.count = 2; // Upgrade
+                    else this.links = this.links.filter(l => l !== existing); // Delete
+                } else {
+                    this.links.push({a: a, b: b, count: 1});
                 }
             }
 
 
-            loop() {
-                requestAnimationFrame(() => this.loop());
-                this.update();
-                this.draw();
+            curCount(n) { let c=0; this.links.forEach(l=>{if(l.a===n||l.b===n)c+=l.count}); return c; }
+            getLink(id1, id2) { return this.links.find(l => (l.a.id===id1 && l.b.id===id2) || (l.a.id===id2 && l.b.id===id1)); }
+            
+            setStatus(msg, type) { 
+                this.statusEl.textContent = msg; 
+                this.statusEl.className = "subtitle " + (type || ""); 
             }
+
+
+            checkWin() {
+                const allOk = this.nodes.every(n => this.curCount(n) === n.req);
+                if(allOk && this.nodes.length>0) {
+                    let adj={}; this.nodes.forEach(n=>adj[n.id]=[]);
+                    this.links.forEach(l=>{adj[l.a.id].push(l.b.id); adj[l.b.id].push(l.a.id);});
+                    let q=[this.nodes[0].id], vis=new Set([this.nodes[0].id]);
+                    while(q.length){
+                        let c=q.pop();
+                        for(let x of adj[c]) if(!vis.has(x)) { vis.add(x); q.push(x); }
+                    }
+                    if(vis.size === this.nodes.length) {
+                        this.winMsg.classList.add('visible');
+                        setTimeout(() => this.generateLevel(), 2500);
+                    }
+                }
+            }
+
+
+            loop() { requestAnimationFrame(() => this.loop()); this.update(); this.draw(); }
         }
 
 
-        window.onload = () => new Game();
+        window.onload = () => new AetherGame();
     </script>
 </body>
 </html>
