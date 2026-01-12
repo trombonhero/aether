@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER: Safe Boundaries</title>
+    <title>AETHER: Retina Ready</title>
     <style>
         /* --- VISUAL CONFIG --- */
         :root { 
@@ -151,9 +151,9 @@
 
 
         const PHYSICS = {
-            topPadding: 130,    // Spazio per Titolo e Bottoni
-            bottomPadding: 100, // SPAZIO EXTRA IN BASSO (Safe Zone)
-            sidePadding: 30,    // Spazio laterale
+            topPadding: 130,    
+            bottomPadding: 100, 
+            sidePadding: 30,    
             repulsion: 400, 
             springLen: 160,
             friction: 0.93,
@@ -175,6 +175,7 @@
                 this.lastShakeTime = 0;
 
 
+                // Bind resize first
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
                 
@@ -183,15 +184,14 @@
                 window.addEventListener('pointermove', e => this.onMove(e));
                 window.addEventListener('pointerup', e => this.onUp(e));
                 
-                // Dice & Motion Sensors
+                // Buttons
                 document.getElementById('btn-dice').addEventListener('click', (e) => { 
                     e.stopPropagation(); 
-                    this.requestMotionPermission(); // Tenta attivazione iOS
+                    this.requestMotionPermission(); 
                     this.shakeWorld(); 
                 });
 
 
-                // Init Motion Listener
                 if (window.DeviceMotionEvent) {
                     window.addEventListener('devicemotion', e => this.handleMotion(e));
                 }
@@ -203,10 +203,21 @@
 
 
             resize() {
+                // HIGH DPI FIX: Calcola la densità reale dei pixel
+                const dpr = window.devicePixelRatio || 1;
+                
+                // Dimensioni logiche (CSS pixels)
                 this.width = window.innerWidth;
                 this.height = window.innerHeight;
-                this.canvas.width = this.width;
-                this.canvas.height = this.height;
+                
+                // Imposta le dimensioni del buffer interno moltiplicate per il DPR
+                this.canvas.width = this.width * dpr;
+                this.canvas.height = this.height * dpr;
+                
+                // Scala tutto il contesto di disegno per adattarsi
+                this.ctx.scale(dpr, dpr);
+                
+                // Nota: CSS width/height sono già gestiti dal layout al 100%
             }
 
 
@@ -248,8 +259,6 @@
                 this.setStatus("COLLEGA I NODI", "ok");
                 
                 const nodeCount = Math.floor(Math.random() * 3) + 6; 
-                
-                // Area di spawn sicura calcolata con i nuovi padding
                 const safeW = this.width - PHYSICS.sidePadding*2;
                 const safeH = this.height - PHYSICS.topPadding - PHYSICS.bottomPadding;
 
@@ -257,7 +266,6 @@
                 for(let i=0; i<nodeCount; i++) {
                     this.nodes.push({
                         id: i,
-                        // Posizione random sempre all'interno della Safe Zone
                         x: Math.random() * safeW + PHYSICS.sidePadding,
                         y: Math.random() * safeH + PHYSICS.topPadding,
                         vx: 0, vy: 0,
@@ -267,7 +275,6 @@
                 }
 
 
-                // Genera Soluzione
                 let connected = [this.nodes[0]];
                 let pool = this.nodes.slice(1);
                 let solLinks = [];
@@ -351,22 +358,17 @@
                 });
 
 
-                // CENTRO DI GRAVITÀ DINAMICO
-                // Attira dolcemente verso il centro della zona sicura, non del viewport intero
                 const safeCenterY = PHYSICS.topPadding + (this.height - PHYSICS.topPadding - PHYSICS.bottomPadding) / 2;
                 const safeCenterX = this.width / 2;
 
 
                 this.nodes.forEach(n => {
-                    
                     n.vx += (safeCenterX - n.x) * 0.0002; 
                     n.vy += (safeCenterY - n.y) * 0.0002;
-                    
                     n.x += n.vx; n.y += n.vy;
                     n.vx *= PHYSICS.friction; n.vy *= PHYSICS.friction;
 
 
-                    // MURI INVISIBILI (CON PADDING CORRETTO)
                     const p = PHYSICS.sidePadding;
                     const tp = PHYSICS.topPadding;
                     const bp = PHYSICS.bottomPadding;
@@ -374,11 +376,7 @@
 
                     if(n.x < p) { n.x = p; n.vx *= -0.6; }
                     if(n.x > this.width - p) { n.x = this.width - p; n.vx *= -0.6; }
-                    
-                    // Rimbalzo Alto (Sotto Header)
                     if(n.y < tp) { n.y = tp; n.vy *= -0.6; }
-                    
-                    // Rimbalzo Basso (Sopra Footer Safe Zone)
                     if(n.y > this.height - bp) { n.y = this.height - bp; n.vy *= -0.6; }
                 });
             }
@@ -472,7 +470,7 @@
             onDown(e) {
                 const pos = this.getPos(e);
                 
-                // 1. Check Node Drag
+                // 1. Drag Node
                 const target = this.nodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 15);
                 if(target) {
                     this.drag.active = true;
@@ -483,7 +481,7 @@
                 }
 
 
-                // 2. Cut Link (Hitbox ampia: 30px)
+                // 2. Cut Link (Hitbox ampia)
                 for(let i=0; i<this.links.length; i++) {
                     const l = this.links[i];
                     if(this.distToSegment(pos, l.a, l.b) < 30) {
