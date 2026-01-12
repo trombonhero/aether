@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER: Kinetic</title>
+    <title>AETHER: Safe Boundaries</title>
     <style>
         /* --- VISUAL CONFIG --- */
         :root { 
@@ -151,12 +151,13 @@
 
 
         const PHYSICS = {
-            topPadding: 120, // Safe zone header
-            padding: 40,
+            topPadding: 130,    // Spazio per Titolo e Bottoni
+            bottomPadding: 100, // SPAZIO EXTRA IN BASSO (Safe Zone)
+            sidePadding: 30,    // Spazio laterale
             repulsion: 400, 
             springLen: 160,
             friction: 0.93,
-            shakeThreshold: 15 // Soglia sensibilità scossa
+            shakeThreshold: 15
         };
 
 
@@ -190,7 +191,7 @@
                 });
 
 
-                // Init Motion Listener (funziona diretto su Android/Desktop se supportato)
+                // Init Motion Listener
                 if (window.DeviceMotionEvent) {
                     window.addEventListener('devicemotion', e => this.handleMotion(e));
                 }
@@ -211,8 +212,7 @@
 
             // --- MOTION CONTROL ---
             requestMotionPermission() {
-                // Necessario per iOS 13+
-                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     DeviceMotionEvent.requestPermission()
                         .then(response => {
                             if (response === 'granted') {
@@ -227,15 +227,11 @@
             handleMotion(e) {
                 const acc = e.accelerationIncludingGravity;
                 if (!acc) return;
-
-
-                // Calcola magnitudine scossa (ignoriamo Z per semplicità)
                 const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y);
 
 
                 if (magnitude > PHYSICS.shakeThreshold) {
                     const now = Date.now();
-                    // Debounce (evita scosse multiple in millisecondi)
                     if (now - this.lastShakeTime > 800) {
                         this.lastShakeTime = now;
                         this.shakeWorld();
@@ -252,15 +248,18 @@
                 this.setStatus("COLLEGA I NODI", "ok");
                 
                 const nodeCount = Math.floor(Math.random() * 3) + 6; 
-                const spawnW = this.width - PHYSICS.padding*2;
-                const spawnH = this.height - PHYSICS.topPadding - PHYSICS.padding;
+                
+                // Area di spawn sicura calcolata con i nuovi padding
+                const safeW = this.width - PHYSICS.sidePadding*2;
+                const safeH = this.height - PHYSICS.topPadding - PHYSICS.bottomPadding;
 
 
                 for(let i=0; i<nodeCount; i++) {
                     this.nodes.push({
                         id: i,
-                        x: Math.random() * spawnW + PHYSICS.padding,
-                        y: Math.random() * spawnH + PHYSICS.topPadding,
+                        // Posizione random sempre all'interno della Safe Zone
+                        x: Math.random() * safeW + PHYSICS.sidePadding,
+                        y: Math.random() * safeH + PHYSICS.topPadding,
                         vx: 0, vy: 0,
                         req: 0,
                         radius: 28 
@@ -309,9 +308,8 @@
                 setTimeout(() => document.getElementById('dice-svg').classList.remove('shaking'), 400);
                 this.setStatus("SCOSSA FISICA", "ok");
                 
-                // Applica una forza randomica a tutti i nodi
                 this.nodes.forEach(n => {
-                    n.vx += (Math.random() - 0.5) * 35; // Forza intensa
+                    n.vx += (Math.random() - 0.5) * 35; 
                     n.vy += (Math.random() - 0.5) * 35;
                 });
             }
@@ -353,23 +351,35 @@
                 });
 
 
+                // CENTRO DI GRAVITÀ DINAMICO
+                // Attira dolcemente verso il centro della zona sicura, non del viewport intero
+                const safeCenterY = PHYSICS.topPadding + (this.height - PHYSICS.topPadding - PHYSICS.bottomPadding) / 2;
+                const safeCenterX = this.width / 2;
+
+
                 this.nodes.forEach(n => {
-                    const cx = this.width / 2;
-                    const cy = PHYSICS.topPadding + (this.height - PHYSICS.topPadding) / 2;
                     
-                    n.vx += (cx - n.x) * 0.0002; 
-                    n.vy += (cy - n.y) * 0.0002;
+                    n.vx += (safeCenterX - n.x) * 0.0002; 
+                    n.vy += (safeCenterY - n.y) * 0.0002;
                     
                     n.x += n.vx; n.y += n.vy;
                     n.vx *= PHYSICS.friction; n.vy *= PHYSICS.friction;
 
 
-                    const p = PHYSICS.padding;
+                    // MURI INVISIBILI (CON PADDING CORRETTO)
+                    const p = PHYSICS.sidePadding;
                     const tp = PHYSICS.topPadding;
+                    const bp = PHYSICS.bottomPadding;
+
+
                     if(n.x < p) { n.x = p; n.vx *= -0.6; }
                     if(n.x > this.width - p) { n.x = this.width - p; n.vx *= -0.6; }
+                    
+                    // Rimbalzo Alto (Sotto Header)
                     if(n.y < tp) { n.y = tp; n.vy *= -0.6; }
-                    if(n.y > this.height - p) { n.y = this.height - p; n.vy *= -0.6; }
+                    
+                    // Rimbalzo Basso (Sopra Footer Safe Zone)
+                    if(n.y > this.height - bp) { n.y = this.height - bp; n.vy *= -0.6; }
                 });
             }
 
@@ -462,7 +472,7 @@
             onDown(e) {
                 const pos = this.getPos(e);
                 
-                // 1. Drag Node
+                // 1. Check Node Drag
                 const target = this.nodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) < n.radius + 15);
                 if(target) {
                     this.drag.active = true;
